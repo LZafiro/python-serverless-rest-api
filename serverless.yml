@@ -1,0 +1,115 @@
+service: serverless-python-api
+
+frameworkVersion: "3"
+
+provider:
+  name: aws
+  runtime: python3.9
+  stage: ${opt:stage, 'dev'}
+  region: ${opt:region, 'us-east-1'}
+  environment:
+    STAGE: ${self:provider.stage}
+    DB_HOST: ${ssm:/serverless-api/${self:provider.stage}/db/host~true}
+    DB_PORT: ${ssm:/serverless-api/${self:provider.stage}/db/port~true}
+    DB_NAME: ${ssm:/serverless-api/${self:provider.stage}/db/name~true}
+    DB_USER: ${ssm:/serverless-api/${self:provider.stage}/db/user~true}
+    DB_PASSWORD: ${ssm:/serverless-api/${self:provider.stage}/db/password~true}
+  iamRoleStatements:
+    - Effect: Allow
+      Action:
+        - rds:*
+      Resource: "*"
+    - Effect: Allow
+      Action:
+        - logs:CreateLogGroup
+        - logs:CreateLogStream
+        - logs:PutLogEvents
+      Resource: "*"
+
+custom:
+  serverlessOffline:
+    httpPort: 3000
+    lambdaPort: 3002
+  pythonRequirements:
+    dockerizePip: true
+    slim: true
+    useDownloadCache: true
+    useStaticCache: true
+
+package:
+  individually: true
+  patterns:
+    - "!node_modules/**" # Project uses because of serverless framework
+    - "!.venv/**"
+    - "!.git/**"
+    - "!tests/**"
+    - "!migrations/**"
+
+plugins:
+  - serverless-python-requirements
+  - serverless-offline
+  - serverless-dotenv-plugin
+
+functions:
+  healthCheck:
+    handler: src/api/handlers/health_handler.health_check
+    events:
+      - http:
+          path: /health
+          method: get
+          cors: true
+
+  createUser:
+    handler: src/api/handlers/user_handlers.create_user
+    events:
+      - http:
+          path: /users
+          method: post
+          cors: true
+
+  getUser:
+    handler: src/api/handlers/user_handlers.get_user
+    events:
+      - http:
+          path: /users/{userId}
+          method: get
+          cors: true
+          request:
+            parameters:
+              paths:
+                userId: true
+
+  listUsers:
+    handler: src/api/handlers/user_handlers.list_users
+    events:
+      - http:
+          path: /users
+          method: get
+          cors: true
+
+  updateUser:
+    handler: src/api/handlers/user_handlers.update_user
+    events:
+      - http:
+          path: /users/{userId}
+          method: put
+          cors: true
+          request:
+            parameters:
+              paths:
+                userId: true
+
+  deleteUser:
+    handler: src/api/handlers/user_handlers.delete_user
+    events:
+      - http:
+          path: /users/{userId}
+          method: delete
+          cors: true
+          request:
+            parameters:
+              paths:
+                userId: true
+# resources:
+#   Resources:
+#     VPC, Sec groups, ....
